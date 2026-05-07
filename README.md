@@ -1,4 +1,3 @@
-# ansible_server_config
 # Linux Server Configuration using Ansible
 
 This repository will have a step by step configuration of a linux server.
