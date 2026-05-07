@@ -1,0 +1,15 @@
+---
+
+
+- hosts: linux_server
+  become: yes
+  tasks:
+
+  - name: UPDATE REPOSITORIES
+    apt:
+      update_cache: yes
+
+  - name: INSTALL APACHE2 WEB SERVER
+    apt:
+      name: apache2
+      state: latest
