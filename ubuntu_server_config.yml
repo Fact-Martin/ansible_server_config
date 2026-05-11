@@ -3,22 +3,43 @@
 
 - hosts: linux_server
   become: yes
-  tasks:
+  vars:
+    samba_shares:
+      - name: PUBLIC
+        path: /srv/samba/public
+        comment: "This is public share for all departments"
+        guest_ok: yes
+      - name: IT
+        path: /srv/samba/it
+        comment: "This folder is for the IT department only"
+        valid_users: "@it"
+        force_group: 'it'
+      - name: FINANCE
+        path: /srv/samba/finance
+        comment: "This folder is for the Finance department only"
+        valid_users: "@finance"
+        force_group: 'finance'
+      - name: LEGAL
+        path: /srv/samba/legal
+        comment: "This folder is for the Legal department only"
+        valid_users: "@legal"
+        force_group: 'legal'
+      - name: OPERATIONS
+        path: /srv/samba/operations
+        comment: "This folder is for the Operations department only"
+        valid_users: "@operations"
+        force_group: 'operations'
 
-  - name: UPDATE REPOSITORIES
-    apt:
-      update_cache: yes
+  tasks:
+ # - name: UPDATE REPOSITORIES
+ #   apt:
+ #     update_cache: yes
 
   - name: INSTALL APACHE2 WEB SERVER
     apt:
       name: apache2
       state: latest
 
-- name: INSTALL AND CONFIGURE SAMBA ON UBUNTU SERVER
-  hosts: linux_server
-  become: yes
-
-  tasks:
   - name: INSTALL SAMBA PACKAGE ON UBUNTU
     apt:
       name:
@@ -27,6 +48,29 @@
        - smbclient
       state: present
     when: ansible_facts['os_family'] == "Debian"
+
+  - name: CREATE THE DEPARTMENTS GROUPS #This will create linux groups so that the "Valid users = @group" works
+    group:
+      name: "{{ item.force_group }}"
+      state: present
+    loop: "{{ samba_shares }}"
+    when: item.force_group is defined
+
+  - name: CREATE THE DIRECTORIES ON THE SERVER #This will create the actual directories on the disk
+    file:
+      path: "{{ item.path }}"
+      state: directory
+      owner: root
+      group: "{{ item.force_group | default('root') }}"
+      mode: '0770'
+    loop: "{{ samba_shares }}"
+
+  - name: DEPLOY THE SAMBA CONFIGURATIONS
+    template:
+      src: templates/smb.conf.j2
+      dest: /etc/samba/smb.conf
+      validate: "testparm -s %s"
+    notify: RESTART SAMBA
 
   - name: ENSURE SAMBA AD SERVICE IS NOT ENABLED
     systemd:
@@ -44,3 +88,12 @@
     loop:
       - smbd
       - nmbd
+
+  handlers:
+    - name: RESTART SAMBA
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - smbd
+        - nmbd

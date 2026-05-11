@@ -1,0 +1,24 @@
+[global]
+    workgroup = {{ samba_workgroup | default('WORKGROUP') }}
+    server string = {{ samba_server_string | default('Samba Server') }}
+    security = user
+    map to guest = Bad User
+
+{% for share in samba_shares %}
+[{{ share.name }}]
+    comment = {{ share.comment }}
+    path = {{ share.path }}
+    browseable = {{ share.browseable | default('yes') }}
+    read only = {{ 'no' if share.writable | default('yes') == 'yes' else 'yes' }}
+    guest ok = {{ share.guest_ok | default('no') }}
+    {% if share.valid_users is defined %}
+    valid users = {{ share.valid_users }}
+    {% endif %}
+    {% if share.force_group is defined %}
+    force group = {{ share.force_group }}
+    {% endif %}
+    create mask = {{ share.create_mask | default('0660') }}
+    directory mask = {{ share.directory_mask | default('0770') }}
+
+{% endfor %}
+
