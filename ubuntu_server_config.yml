@@ -13,3 +13,34 @@
     apt:
       name: apache2
       state: latest
+
+- name: INSTALL AND CONFIGURE SAMBA ON UBUNTU SERVER
+  hosts: linux_server
+  become: yes
+
+  tasks:
+  - name: INSTALL SAMBA PACKAGE ON UBUNTU
+    apt:
+      name:
+       - samba
+       - samba-common-bin
+       - smbclient
+      state: present
+    when: ansible_facts['os_family'] == "Debian"
+
+  - name: ENSURE SAMBA AD SERVICE IS NOT ENABLED
+    systemd:
+      name: samba-ad-dc
+      masked: no
+      state: stopped
+      enabled: no
+      daemon_reload: yes
+
+  - name: ENSURE SMB SERVICES ARE STARTED AND ENABLED
+    systemd:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    loop:
+      - smbd
+      - nmbd
