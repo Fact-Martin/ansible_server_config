@@ -4,6 +4,12 @@
 - hosts: linux_server
   become: yes
   vars:
+    samba_users:
+      - { name: 'martin', group: 'it', password: 'martin12345'}
+      - { name: 'chunga', group: 'finance', password: 'chunga12345'}
+      - { name: 'cathy', group: 'operations', password: 'cathy12345'}
+      - { name: 'grace', group: 'legal', password: 'grace12345'}
+
     samba_shares:
       - name: PUBLIC
         path: /srv/samba/public
@@ -71,6 +77,19 @@
       dest: /etc/samba/smb.conf
       validate: "testparm -s %s"
     notify: RESTART SAMBA
+
+  - name: CREATE LINUX USERS AND ADD TO GROUPS
+    user:
+      name: "{{ item.name }}"
+      groups: "{{ item.group }}"
+      append: yes
+    loop: "{{ samba_users }}"
+
+  - name: SET SAMBA PASSWORDS
+    shell: "printf '{{ item.password }}\n{{ item.password }}\n' | smbpasswd -a {{ item.name }}"
+    loop: "{{ samba_users }}"
+    register: smbpasswd_result
+    changed_when: "'Added user' in smbpasswd_result.stdout or 'Password changed' in smbpasswd_result.stdout"
 
   - name: ENSURE SAMBA AD SERVICE IS NOT ENABLED
     systemd:
