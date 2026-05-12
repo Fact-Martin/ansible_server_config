@@ -154,13 +154,23 @@
     when: ansible_facts['os_family'] == "Debian"
     notify: RESTART APACHE
 
-  - name: PROVISION THE WEB DOCUMENTATIONROOT TARGETS
+  - name: PROVISION THE WEB DOCUMENTATION ROOT TARGETS
     ansible.builtin.file:
       path: "/var/www/{{ item.domain }}/public_html"
       state: directory
       owner: www-data
       group: www-data
       mode: "0755"
+    loop: "{{ apache_vhosts }}"
+    when: ansible_facts['os_family'] == "Debian"
+
+  - name: SEED TEST VIRTUAL HOST ENTRY POINTS
+    ansible.builtin.copy:
+      dest: "/var/www/{{ item.domain }}/public_html/index.html"
+      content: "<h1>Welcome to {{ item.domain }}! Managed by Martin Chunga through Ansible :)).</h1>"
+      owner: www-data
+      group: www-data
+      mode: "0644"
     loop: "{{ apache_vhosts }}"
     when: ansible_facts['os_family'] == "Debian"
 
