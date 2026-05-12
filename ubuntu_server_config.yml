@@ -194,6 +194,32 @@
     when: ansible_facts['os_family'] == "Debian"
     notify: RESTART APACHE
 
+  - name: DEPLOY SSL CONFIGS
+    ansible.builtin.copy:
+      dest: /etc/apache2/conf-available/ssl-params.conf
+      content: |
+        # SSL Parameters - managed by Martin Chunga through Ansible
+        SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+        SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
+        SSLHonorCipherOrder off
+        SSLSessionTickets off
+        SSLUseStapling On
+        # Using absolute path for the logs directory we created
+        SSLStaplingCache "shmcb:/etc/apache2/logs/ssl_stapling(32768)"
+        Header always set Strict-Transport-Security "max-age=63072000"
+      mode: "0644"
+      owner: root
+      group: root
+    notify: RESTART APACHE
+
+  - name: ENABLE SSL CONFIGS
+    ansible.builtin.command:
+      cmd: a2enconf ssl-params
+    register: ssl_conf
+    changed_when: "'Enabling' in ssl_conf.stdout or 'already enabled' not in ssl_conf.stdout"
+    when: ansible_facts['os_family'] == "Debian"
+    notify: RESTART APACHE
+
   - name: DISABLE THE DEFAULT APACHE CONFIG
     ansible.builtin.command:
       cmd: a2dissite 000-default.conf
