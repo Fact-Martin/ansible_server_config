@@ -78,6 +78,13 @@
       name: apache2
       state: latest
 
+  - name: SET GLOBAL SERVERNAME TO SILENCE WARNINGS
+    ansible.builtin.lineinfile:
+      path: /etc/apache2/apache2.conf
+      line: "ServerName 127.0.0.1"
+      state: present
+    notify: RESTART APACHE
+
   - name: ENSURE APACHE LOG DIRECTORY EXISTS
     file:
       path: /etc/apache2/logs
@@ -290,6 +297,41 @@
     loop:
       - smbd
       - nmbd
+
+  - name: VERIFY APACHE INSTALLATION AND CONFIGURATION
+    block:
+      - name: Check Apache service status
+        ansible.builtin.systemd:
+          name: apache2
+        register: apache_service
+
+      - name: Get Apache version
+        ansible.builtin.command:
+          cmd: apache2ctl -v
+        register: apache_version
+        changed_when: false
+
+      - name: List enabled modules
+        ansible.builtin.command:
+          cmd: apache2ctl -M
+        register: apache_modules_list
+        changed_when: false
+
+      - name: Test configuration syntax
+        ansible.builtin.command:
+          cmd: apache2ctl configtest
+        register: config_test
+        changed_when: false
+
+      - name: Display Apache Health Summary
+        ansible.builtin.debug:
+          msg:
+            - "------------------------------------------"
+            - "SERVICE STATUS: {{ apache_service.status.ActiveState }}"
+            - "APACHE VERSION: {{ apache_version.stdout_lines[0] }}"
+            - "CONFIG CHECK:   {{ config_test.stderr | default('Syntax OK') }}"
+            - "MODULES ACTIVE: {{ apache_modules_list.stdout_lines | length }} modules loaded"
+            - "------------------------------------------"
 
   handlers:
     - name: RESTART SAMBA
