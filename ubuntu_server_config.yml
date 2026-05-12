@@ -174,13 +174,22 @@
     loop: "{{ apache_vhosts }}"
     when: ansible_facts['os_family'] == "Debian"
 
-  - name: Render custom Virtual Host definitions
+  - name: RENDER CUSTOM VIRTUAL HOSTS DEFINITIONS
     ansible.builtin.template:
       src: templates/vhost.conf.j2
       dest: /etc/apache2/sites-available/{{ item.domain }}.conf
       owner: root
       group: root
       mode: "0644"
+    loop: "{{ apache_vhosts }}"
+    when: ansible_facts['os_family'] == "Debian"
+    notify: RESTART APACHE
+
+  - name: ENABLE CUSTOM VIRTUAL HOST CONFIGIGS
+    ansible.builtin.command:
+      cmd: "a2ensite {{ item.domain }}.conf"
+    register: site_enable
+    changed_when: "'Enabling' in site_enable.stdout"
     loop: "{{ apache_vhosts }}"
     when: ansible_facts['os_family'] == "Debian"
     notify: RESTART APACHE
