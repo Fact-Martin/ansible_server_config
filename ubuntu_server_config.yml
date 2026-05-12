@@ -47,6 +47,27 @@
       - expires
       - socache_shmcb
 
+    # Global Parameters
+    apache_server_admin: "ansible@malawi.com"
+    apache_timeout: 300
+    apache_keepalive: "On"
+    apache_keepalive_timeout: 5
+    apache_max_keepalive_requests: 100
+
+    # Event MPM Parameter Tuning
+    apache_mpm: "event"
+    apache_mpm_start_servers: 2
+    apache_mpm_min_spare_threads: 25
+    apache_mpm_max_spare_threads: 75
+    apache_mpm_thread_limit: 64
+    apache_mpm_threads_per_child: 25
+    apache_mpm_max_request_workers: 150
+
+    # Virtual Host Declarations
+    apache_vhosts:
+      - domain: "malawi.com"
+      - domain: "test.local"
+
   tasks:
  # - name: UPDATE REPOSITORIES
  #   apt:
@@ -65,7 +86,7 @@
     when: ansible_facts['os_family'] == "Debian"
 
   - name: ENABLE APACHE MODULES
-    community.general.apache2_module:
+    apache2_module:
       name: "{{ item }}"
       state: present
     loop: "{{ apache_modules }}"
@@ -79,6 +100,20 @@
        - smbclient
       state: latest
     when: ansible_facts['os_family'] == "Debian"
+
+  - name: DISABLE CONFLICTING APACHE MPM PREFORK MODULES
+    apache2_module:
+      name: mpm_prefork
+      state: absent
+      ignore_configcheck: true
+    notify: RESTART APACHE
+
+  - name: ENABLE THE TARGETED APACHE MPM MODULE
+    apache2_module:
+      name: "mpm_{{ apache_mpm }}"
+      state: present
+      ignore_configcheck: true
+    notify: RESTART APACHE
 
   - name: CREATE THE DEPARTMENTS GROUPS #This will create linux groups so that the "Valid users = @group" works
     group:
