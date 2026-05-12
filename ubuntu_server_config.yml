@@ -68,6 +68,10 @@
       - domain: "malawi.com"
       - domain: "test.local"
 
+    # Monitoring Tool Versions
+    prometheus_version: "3.0.0" # Current stable version
+    node_exporter_version: "1.8.2"
+
   tasks:
  # - name: UPDATE REPOSITORIES
  #   apt:
@@ -298,6 +302,190 @@
       - smbd
       - nmbd
 
+    # ==========================================
+    # LOG ROTATION SETUP
+    # ==========================================
+  - name: CONFIGURE LOGROTATE FOR CUSTOM APACHE LOGS
+    ansible.builtin.copy:
+      dest: /etc/logrotate.d/apache2-custom
+      content: |
+        /etc/apache2/logs/*.log {
+            daily
+            missingok
+            rotate 14
+            compress
+            delaycompress
+            notifempty
+            create 0640 root adm
+            sharedscripts
+            prerotate
+                if [ -d /etc/apache2/vhosts ] && [ -f /etc/apache2/vhosts/systemctl ]; then
+                    systemctl reload apache2 > /dev/null
+                fi
+            endscript
+            postrotate
+                if systemctl is-active --quiet apache2; then
+                    systemctl reload apache2 > /dev/null
+                fi
+            endscript
+        }
+      mode: '0644'
+
+  - name: DEPLOY CUSTOM SYSTEM MOTD BANNER
+    ansible.builtin.copy:
+      dest: /etc/motd
+      content: |
+        ===============================================================
+           WELCOME TO YOUR ANSIBLE SERVER ENVIRONMENT MARTIN CHUNGA :)
+        ===============================================================
+           Status: Managed by Ansible (ubuntu_server_config.yml)
+           Services Active: Apache2 Web Server & Samba Active Directory
+           Monitoring: Prometheus & Grafana System Metrics Engine Enabled
+        ===============================================================
+        Authorized access only. All actions are logged.
+      mode: '0644'
+
+    # ==========================================
+    # PROMETHEUS & EXPORTER INSTALLATION
+    # ==========================================
+  - name: INSTALL PROMETHEUS SERVER PLATFORM DEPENDENCIES
+    ansible.builtin.apt:
+      name:
+        - prometheus
+        - prometheus-node-exporter
+      state: latest
+
+  - name: CONFIGURE PROMETHEUS LOCAL SCRAPE TARGETS
+    ansible.builtin.copy:
+      dest: /etc/prometheus/prometheus.yml
+      content: |
+        global:
+          scrape_interval: 15s
+        scrape_configs:
+          - job_name: 'node'
+            static_configs:
+              - targets: ['localhost:9100']
+          - job_name: 'prometheus'
+            static_configs:
+              - targets: ['localhost:9090']
+      mode: '0644'
+    notify: RESTART PROMETHEUS
+
+  - name: ENSURE PROMETHEUS MONITORING STACK COMPONENTS ARE RUNNING
+    ansible.builtin.systemd:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    loop:
+      - prometheus
+      - prometheus-node-exporter
+
+    # ==========================================
+    # GRAFANA ANALYTICS ENGINE INSTALLATION
+    # ==========================================
+  - name: ENSURE GRAFANA APT REPOSITORY PREREQUISITES EXIST
+    ansible.builtin.apt:
+      name:
+        - apt-transport-https
+        - software-properties-common
+        - wget
+        - gnupg
+      state: latest
+
+  - name: ESTABLISH SECURE REPOSITORY KEYSTRING ECOSYSTEM
+    ansible.builtin.file:
+      path: /etc/apt/keyrings
+      state: directory
+      owner: root
+      group: root
+      mode: '0755'
+
+  - name: DOWNLOAD GRAFANA OFFICIAL GPG KEY SECURELY
+    ansible.builtin.get_url:
+      url: "https://apt.grafana.com/gpg-full.key"
+      dest: /etc/apt/keyrings/grafana.asc
+      mode: '0644'
+
+  - name: CONFIGURE GRAFANA STABLE PACKAGE STREAM REPOSITORY
+    ansible.builtin.apt_repository:
+      repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+      state: present
+      filename: grafana
+
+  - name: INSTALL GRAFANA SYSTEM BINARIES
+    ansible.builtin.apt:
+      name: grafana
+      update_cache: yes
+      state: latest
+
+    # ==========================================
+    # AUTOMATED GRAFANA PROVISIONING
+    # ==========================================
+  - name: Automatically provision Prometheus data source in Grafana
+    ansible.builtin.copy:
+      dest: /etc/grafana/provisioning/datasources/prometheus.yaml
+      content: |
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            type: prometheus
+            access: proxy
+            url: http://localhost:9090
+            isDefault: true
+            editable: true
+      owner: root
+      group: grafana
+      mode: "0640"
+    notify: RESTART GRAFANA
+
+  - name: CREATE GRAFANA DASHBOARD PROVISIONING CONFIGURATIONS
+    ansible.builtin.copy:
+      dest: /etc/grafana/provisioning/dashboards/local_provisioning.yaml
+      content: |
+        apiVersion: 1
+        providers:
+          - name: 'Dashboards Configured With Ansible'
+            orgId: 1
+            folder: ''
+            type: file
+            disableDeletion: false
+            editable: true
+            updateIntervalSeconds: 10
+            options:
+              path: /var/lib/grafana/dashboards
+      owner: root
+      group: grafana
+      mode: "0640"
+    notify: RESTART GRAFANA
+
+  - name: ESTABLISH STORAGE DIRECTORY FOR RAW DASHBOARD PAYLOADS
+    ansible.builtin.file:
+      path: /var/lib/grafana/dashboards
+      state: directory
+      owner: grafana
+      group: grafana
+      mode: "0755"
+
+  - name: Download pre-built Node Exporter system monitoring dashboard
+    ansible.builtin.shell: |
+      curl -sL "githubusercontent.com" -o /var/lib/grafana/dashboards/node_exporter_full.json
+    register: curl_download
+    changed_when: curl_download.rc == 0
+    notify: RESTART GRAFANA
+
+  - name: Ensure correct permissions on the downloaded dashboard
+    ansible.builtin.file:
+      path: /var/lib/grafana/dashboards/node_exporter_full.json
+      owner: grafana
+      group: grafana
+      mode: "0644"
+
+  - name: FORCE SYSTEMD TO START AND LOCK GRAFANA ENGINE EXECUTION
+    ansible.builtin.systemd:
+      name: grafana-server
+      state: started
+      enabled: yes
+
   - name: VERIFY APACHE INSTALLATION AND CONFIGURATION
     block:
       - name: Check Apache service status
@@ -341,7 +529,18 @@
       loop:
         - smbd
         - nmbd
+
     - name: RESTART APACHE
       systemd:
         name: apache2
+        state: restarted
+
+    - name: RESTART PROMETHEUS
+      systemd:
+        name: prometheus
+        state: restarted
+
+    - name: RESTART GRAFANA
+      systemd:
+        name: grafana-server
         state: restarted
