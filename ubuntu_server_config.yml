@@ -78,12 +78,13 @@
       name: apache2
       state: latest
 
-  - name: ENSURE APACHE2 IS STARTED AND ENABLED
-    systemd:
-      name: apache2
-      state: started
-      enabled: true
-    when: ansible_facts['os_family'] == "Debian"
+  - name: ENSURE APACHE LOG DIRECTORY EXISTS
+    file:
+      path: /etc/apache2/logs
+      state: directory
+      owner: root
+      group: root
+      mode: "0755"
 
   - name: ENABLE APACHE MODULES
     apache2_module:
@@ -91,15 +92,6 @@
       state: present
     loop: "{{ apache_modules }}"
     notify: RESTART APACHE
-
-  - name: INSTALL SAMBA PACKAGE ON UBUNTU
-    apt:
-      name:
-       - samba
-       - samba-common-bin
-       - smbclient
-      state: latest
-    when: ansible_facts['os_family'] == "Debian"
 
   - name: DISABLE CONFLICTING APACHE MPM PREFORK MODULES
     apache2_module:
@@ -114,6 +106,55 @@
       state: present
       ignore_configcheck: true
     notify: RESTART APACHE
+
+  - name: DEPLOY THE DYNAMIC MAIN APACHE SYSTEM CONFIGURATION
+    template:
+      src: templates/apache2.conf.j2
+      dest: /etc/apache2/apache2.conf
+      owner: root
+      group: root
+      mode: "0644"
+    notify: RESTART APACHE
+
+  - name: ENSURE APACHE2 IS STARTED AND ENABLED
+    systemd:
+      name: apache2
+      state: started
+      enabled: true
+    when: ansible_facts['os_family'] == "Debian"
+
+  - name: DEPLOY HARDENED CORE SECURITY CONFIGS
+    ansible.builtin.copy:
+      dest: /etc/apache2/conf-available/security.conf
+      content: |
+        # Security configuration - managed by Ansible
+        ServerTokens Prod
+        ServerSignature Off
+        Header always set X-Frame-Options "SAMEORIGIN"
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set X-XSS-Protection "1; mode=block"
+        Header always set Referrer-Policy "strict-origin-when-cross-origin"
+        <Directory />
+            Options -Indexes
+            AllowOverride None
+            Require all denied
+        </Directory>
+        TraceEnable Off
+        LimitRequestBody 10485760
+      owner: root
+      group: root
+      mode: "0644"
+    notify: RESTART APACHE
+
+
+  - name: INSTALL SAMBA PACKAGE ON UBUNTU
+    apt:
+      name:
+       - samba
+       - samba-common-bin
+       - smbclient
+      state: latest
+    when: ansible_facts['os_family'] == "Debian"
 
   - name: CREATE THE DEPARTMENTS GROUPS #This will create linux groups so that the "Valid users = @group" works
     group:

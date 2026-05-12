@@ -1,0 +1,40 @@
+# Global Server Resource Configuration
+Timeout {{ apache_timeout }}
+KeepAlive {{ apache_keepalive }}
+MaxKeepAliveRequests {{ apache_max_keepalive_requests }}
+KeepAliveTimeout {{ apache_keepalive_timeout }}
+
+# Core Runtime Parameters
+User ${APACHE_RUN_USER}
+Group ${APACHE_RUN_GROUP}
+PidFile ${APACHE_PID_FILE}
+DefaultRuntimeDir ${APACHE_RUN_DIR}
+
+# Performance Tuning Engine
+<IfModule mpm_{{ apache_mpm }}_module>
+    StartServers             {{ apache_mpm_start_servers }}
+    MinSpareThreads          {{ apache_mpm_min_spare_threads }}
+    MaxSpareThreads          {{ apache_mpm_max_spare_threads }}
+    ThreadLimit              {{ apache_mpm_thread_limit }}
+    ThreadsPerChild          {{ apache_mpm_threads_per_child }}
+    MaxRequestWorkers        {{ apache_mpm_max_request_workers }}
+    MaxConnectionsPerChild   0
+</IfModule>
+
+# Include default system settings
+IncludeOptional mods-enabled/*.load
+IncludeOptional mods-enabled/*.conf
+Include ports.conf
+
+<Directory />
+    Options FollowSymLinks
+    AllowOverride None
+    Require all denied
+</Directory>
+
+LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %O" common
+
+IncludeOptional conf-enabled/*.conf
+IncludeOptional sites-enabled/*.conf
