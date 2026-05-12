@@ -194,6 +194,15 @@
     when: ansible_facts['os_family'] == "Debian"
     notify: RESTART APACHE
 
+  - name: DISABLE THE DEFAULT APACHE CONFIG
+    ansible.builtin.command:
+      cmd: a2dissite 000-default.conf
+    register: site_disable
+    changed_when: "'Site 000-default disabled' in site_disable.stdout"
+    failed_when: false
+    when: ansible_facts['os_family'] == "Debian"
+    notify: RESTART APACHE
+
   - name: INSTALL SAMBA PACKAGE ON UBUNTU
     apt:
       name:
