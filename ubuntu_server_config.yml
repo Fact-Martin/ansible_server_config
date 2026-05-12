@@ -146,6 +146,23 @@
       mode: "0644"
     notify: RESTART APACHE
 
+  - name: ENABLE CORE SECURITY RUNTIME ADJUSTMENT
+    ansible.builtin.command:
+      cmd: a2enconf security
+    register: security_conf
+    changed_when: "'Enabling' in security_conf.stdout or 'already enabled' not in security_conf.stdout"
+    when: ansible_facts['os_family'] == "Debian"
+    notify: RESTART APACHE
+
+  - name: PROVISION THE WEB DOCUMENTATIONROOT TARGETS
+    ansible.builtin.file:
+      path: "/var/www/{{ item.domain }}/public_html"
+      state: directory
+      owner: www-data
+      group: www-data
+      mode: "0755"
+    loop: "{{ apache_vhosts }}"
+    when: ansible_facts['os_family'] == "Debian"
 
   - name: INSTALL SAMBA PACKAGE ON UBUNTU
     apt:
