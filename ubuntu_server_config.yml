@@ -628,6 +628,25 @@
       state: started
       enabled: yes
 
+    # ==========================================
+    # SSH DAEMON ACCESS STRUCTURAL HARDENING
+    # ==========================================
+  - name: HARDEN SSH ACCESS PROFILES BY STRIPPING ADMIN ROOT REMOTE LOGINS
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^#?PermitRootLogin'
+      line: 'PermitRootLogin no'
+      state: present
+    notify: RESTART SSH
+
+  - name: HARDEN SSH EXCHANGE LAYERS BY DROPPING PLAINTEXT PASSWORDS IF PUBLIC
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^#?PasswordAuthentication'
+      line: 'PasswordAuthentication yes' # Yes since am using --ask-become-pass
+      state: present
+    notify: RESTART SSH
+
   - name: VERIFY APACHE INSTALLATION AND CONFIGURATION
     block:
       - name: Check Apache service status
@@ -690,4 +709,9 @@
     - name: RESTART FAIL2BAN
       ansible.builtin.systemd:
         name: fail2ban
+        state: restarted
+
+    - name: RESTART SSH
+      ansible.builtin.systemd:
+        name: ssh
         state: restarted
