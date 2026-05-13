@@ -74,6 +74,12 @@
     prometheus_version: "3.0.0" # Current stable version
     node_exporter_version: "1.8.2"
 
+    # System Security Hardening Parameters
+    ssh_port: 22
+    allowed_management_subnets:
+      - "192.168.106.0/24" # Permits traffic from your local network segment
+
+
   tasks:
  # - name: UPDATE REPOSITORIES
  #   apt:
@@ -527,6 +533,101 @@
       state: started
       enabled: yes
 
+    # ==========================================
+    # UFW FIREWALL RULE ORCHESTRATION
+    # ==========================================
+  - name: RESET UFW FIREWALL ENGINE RULES TO STANDARD SECURE DEFAULT DENY POSTURE
+    community.general.ufw:
+      state: reset
+
+  - name: CONFIGURE GLOBAL OUTBOUND TRAFFIC POLICY TO ALLOW ALL EGRESS CONNECTIONS
+    community.general.ufw:
+      direction: outgoing
+      policy: allow
+
+  - name: CONFIGURE GLOBAL INBOUND TRAFFIC POLICY TO BLOCK ALL INGRESS CONNECTIONS
+    community.general.ufw:
+      direction: incoming
+      policy: deny
+
+  - name: OPEN PUBLIC WEB INFRASTRUCTURE ACCESS ENDPOINTS SAFELY
+    community.general.ufw:
+      rule: allow
+      port: "{{ item }}"
+      proto: tcp
+    loop:
+      - '80'   # Apache HTTP entry point
+      - '443'  # Apache Hardened HTTPS entry point
+
+  - name: OPEN SAMBA NETWORK FILE SHARING STORAGE HUB ENDPOINTS LOCALLY
+    community.general.ufw:
+      rule: allow
+      port: "{{ item }}"
+      proto: tcp
+      src: "{{ allowed_management_subnets[0] }}"
+    loop:
+      - '139'  # NetBIOS Session Service
+      - '445'  # Microsoft-DS Active Directory Directory Services SMB
+
+  - name: ISOLATE SECURE ADMINISTRATIVE SHELL ENTRY ENDPOINTS
+    community.general.ufw:
+      rule: allow
+      port: "{{ ssh_port | string }}"
+      proto: tcp
+      src: "{{ item }}"
+    loop: "{{ allowed_management_subnets }}"
+
+  - name: ISOLATE INTERNAL ANALYTICS TRACKING ENGINE ENDPOINTS
+    community.general.ufw:
+      rule: allow
+      port: "{{ item }}"
+      proto: tcp
+      src: "{{ allowed_management_subnets[0] }}"
+    loop:
+      - '3000' # Grafana Visuals Control Web Interface
+      - '9090' # Prometheus Core Metric Engine Endpoint
+      - '9100' # Node Exporter Resource Scraping Target
+
+  - name: ACTIVATE UFW FIREWALL KERNEL ENFORCEMENT RUNTIME ENGINES
+    community.general.ufw:
+      state: enabled
+
+    # ==========================================
+    # BRUTE-FORCE PREVENTION VIA FAIL2BAN
+    # ==========================================
+  - name: DEPLOY AUTOMATED HOST DEFENSE SOFTWARE BINARIES
+    ansible.builtin.apt:
+      name: fail2ban
+      state: latest
+
+  - name: PROVISION CUSTOM JAIL CONFIGS FOR LOCAL SERVICE DEAMONS
+    ansible.builtin.copy:
+      dest: /etc/fail2ban/jail.local
+      content: |
+        [DEFAULT]
+        bantime  = 1h
+        findtime = 10m
+        maxretry = 5
+
+        [sshd]
+        enabled  = true
+        port     = {{ ssh_port }}
+        logpath  = %(sshd_log)s
+        backend  = %(sshd_backend)s
+
+        [apache-auth]
+        enabled  = true
+        port     = http,https
+        logpath  = %(apache_error_log)s
+      mode: '0644'
+    notify: RESTART FAIL2BAN
+
+  - name: LOCK FAIL2BAN ENFORCEMENT SERVICES AT SYSTEM BOOT
+    ansible.builtin.systemd:
+      name: fail2ban
+      state: started
+      enabled: yes
+
   - name: VERIFY APACHE INSTALLATION AND CONFIGURATION
     block:
       - name: Check Apache service status
@@ -584,4 +685,9 @@
     - name: RESTART GRAFANA
       systemd:
         name: grafana-server
+        state: restarted
+
+    - name: RESTART FAIL2BAN
+      ansible.builtin.systemd:
+        name: fail2ban
         state: restarted
