@@ -1,0 +1,20 @@
+---
+- name: REMOVE DEFAULT UBUNTU DYNAMIC MOTD
+  ansible.builtin.file:
+    path: "/etc/update-motd.d/{{ item }}"
+    state: absent
+  loop: ['10-help-text', '50-motd-news']
+
+- name: DEPLOY CUSTOM SYSTEM MOTD BANNER
+  ansible.builtin.copy:
+    dest: /etc/motd
+    content: |
+      ===============================================================
+        WELCOME TO THE ANSIBLE SERVER CONFIGURATIONS BY MARTIN CHUNGA :)
+      ===============================================================
+        Status: Managed by Ansible (ubuntu_server_config.yml)
+        Services Active: Apache2 Web Server & Samba Active Directory
+      ===============================================================
+    mode: '0644'
+
+

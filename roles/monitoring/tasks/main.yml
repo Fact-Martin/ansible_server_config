@@ -1,0 +1,175 @@
+---
+- name: Install Prometheus server platform dependencies
+  ansible.builtin.apt:
+    name:
+      - prometheus
+      - prometheus-node-exporter
+    state: latest
+
+- name: Configure Prometheus local scrape targets
+  ansible.builtin.copy:
+    dest: /etc/prometheus/prometheus.yml
+    content: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: 'node'
+          static_configs:
+            - targets: ['localhost:9100']
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+    mode: '0644'
+
+- name: Ensure Prometheus monitoring stack components are running
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - prometheus
+    - prometheus-node-exporter
+
+# ==========================================
+# FIXED GRAFANA PACKAGING ENGINE ROUTINES
+# ==========================================
+- name: Ensure Grafana APT repository prerequisites exist
+  ansible.builtin.apt:
+    name: 
+      - apt-transport-https
+      - software-properties-common
+      - wget
+      - gnupg
+    state: latest
+
+- name: Establish secure repository keyring ecosystem folder
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Clean up any old broken signature blocks
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/keyrings/grafana.asc
+    - /etc/apt/keyrings/grafana.gpg
+    - /etc/apt/sources.list.d/grafana.list
+
+- name: Download Grafana official raw armored GPG key securely
+  ansible.builtin.get_url:
+    url: "https://apt.grafana.com/gpg-full.key"
+    dest: /tmp/raw_grafana.key
+    mode: '0644'
+
+- name: Dearmor and save Grafana GPG key to system binary format
+  ansible.builtin.shell:
+    cmd: "gpg --dearmor < /tmp/raw_grafana.key > /etc/apt/keyrings/grafana.gpg"
+    creates: /etc/apt/keyrings/grafana.gpg
+
+- name: Configure Grafana stable package stream repository with binary signature mapping
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+    state: present
+    filename: grafana
+    update_cache: yes
+
+- name: Install Grafana system binaries
+  ansible.builtin.apt:
+    name: grafana
+    state: latest
+
+# ==========================================
+# POST-INSTALL AUTOMATED PROVISIONING 
+# ==========================================
+- name: Automatically provision Prometheus data source in Grafana
+  ansible.builtin.copy:
+    dest: /etc/grafana/provisioning/datasources/prometheus.yaml
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://localhost:9090
+          isDefault: true
+          editable: true
+    owner: root
+    group: grafana
+    mode: "0640"
+
+- name: Push metrics dashboard directly into Grafana Database via API
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/dashboards/db"
+    method: POST
+    user: "admin"
+    password: "{{ vault_grafana_password }}"
+    force_basic_auth: yes
+    body_format: json
+    body:
+      overwrite: true
+      folderId: 0
+      dashboard:
+        id: null
+        uid: "node-metrics-full"
+        title: "Ansible System Infrastructure Analytics By CATHY GRACE MTELEKESYA"
+        tags: ["prometheus"]
+        timezone: "browser"
+        schemaVersion: 36
+        version: 2
+        panels:
+          - id: 1
+            type: "gauge"
+            title: "Total CPU Load"
+            gridPos: { "h": 6, "w": 8, "x": 0, "y": 0 }
+            datasource: { "type": "prometheus", "uid": "Prometheus" }
+            targets:
+              - expr: "100 - (avg(irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)"
+                legendFormat: "CPU %"
+
+          - id: 2
+            type: "timeseries"
+            title: "Memory Capacity Over Time"
+            gridPos: { "h": 6, "w": 16, "x": 8, "y": 0 }
+            datasource: { "type": "prometheus", "uid": "Prometheus" }
+            targets:
+              - expr: "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes"
+                legendFormat: "Used RAM"
+            fieldConfig:
+              defaults:
+                unit: "bytes"
+
+          - id: 3
+            type: "gauge"
+            title: "Root Filesystem Storage Space"
+            gridPos: { "h": 6, "w": 8, "x": 0, "y": 6 }
+            datasource: { "type": "prometheus", "uid": "Prometheus" }
+            targets:
+              - expr: "100 - ((node_filesystem_avail_bytes{mountpoint='/'} * 100) / node_filesystem_size_bytes{mountpoint='/'})"
+                legendFormat: "Disk % Used"
+
+          - id: 4
+            type: "timeseries"
+            title: "Network Bandwidth Consumption"
+            gridPos: { "h": 6, "w": 16, "x": 8, "y": 6 }
+            datasource: { "type": "prometheus", "uid": "Prometheus" }
+            targets:
+              - expr: "irate(node_network_receive_bytes_total{device!~'lo'}[5m])"
+                legendFormat: "Download traffic"
+              - expr: "irate(node_network_transmit_bytes_total{device!~'lo'}[5m])"
+                legendFormat: "Upload traffic"
+            fieldConfig:
+              defaults:
+                unit: "Bps"
+    status_code: 200
+  ignore_errors: yes
+
+
+- name: Force systemd to start and lock Grafana engine execution
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: yes

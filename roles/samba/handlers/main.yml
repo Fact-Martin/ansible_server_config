@@ -1,0 +1,8 @@
+---
+- name: RESTART SAMBA
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - smbd
+    - nmbd
