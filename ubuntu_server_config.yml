@@ -6,10 +6,11 @@
 
   vars:
     samba_users:
-      - { name: 'martin', group: 'it', password: 'martin12345'}
-      - { name: 'chunga', group: 'finance', password: 'chunga12345'}
-      - { name: 'cathy', group: 'operations', password: 'cathy12345'}
-      - { name: 'grace', group: 'legal', password: 'grace12345'}
+      - { name: 'martin', group: 'it', password: "{{ vault_samba_password_martin }}" }
+      - { name: 'chunga', group: 'finance', password: "{{ vault_samba_password_chunga }}" }
+      - { name: 'cathy', group: 'operations', password: "{{ vault_samba_password_cathy }}" }
+      - { name: 'grace', group: 'legal', password: "{{ vault_samba_password_grace }}" }
+
 
     samba_shares:
       - name: PUBLIC
