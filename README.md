@@ -36,6 +36,12 @@ This project solves those limitations by treating the entire server infrastructu
 * `roles/monitoring/` - Automated metrics scraping and analytics visualization injection.
 * `vars/vault.yml` - Secure AES-256 encrypted database housing all infrastructure credentials (Ansible Vault).
 
+## System Performance Analytics Dashboard
+![Grafana Performance Dashboard Suite](images/dashboard.png)
+
+*Metrics engine architected and provisioned by MARTIN FACT CHUNGA.*
+
+
 ##  Execution & Deployment Instructions
 
 To execute the infrastructure pipeline and apply the secure configuration states, run the orchestrator script with local execution elevation and credential decryption flags:

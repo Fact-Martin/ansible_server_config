@@ -92,6 +92,7 @@
       apiVersion: 1
       datasources:
         - name: Prometheus
+          uid: Prometheus 
           type: prometheus
           access: proxy
           url: http://localhost:9090
@@ -115,7 +116,7 @@
       dashboard:
         id: null
         uid: "node-metrics-full"
-        title: "Ansible System Infrastructure Analytics By CATHY GRACE MTELEKESYA"
+        title: "Ansible System Infrastructure Analytics By MARTIN FACT CHUNGA"
         tags: ["prometheus"]
         timezone: "browser"
         schemaVersion: 36
