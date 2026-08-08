@@ -37,7 +37,7 @@ This project solves those limitations by treating the entire server infrastructu
 * `vars/vault.yml` - Secure AES-256 encrypted database housing all infrastructure credentials (Ansible Vault).
 
 ## System Performance Analytics Dashboard
-![Grafana Performance Dashboard Suite](images/dashboard.png)
+![Grafana Performance Dashboard Suite](images/Grafana_Visualization_Dashboard.png)
 
 *Metrics engine architected and provisioned by MARTIN FACT CHUNGA.*
 
